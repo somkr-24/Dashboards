@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RideIQ — Booking Analytics Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #12151c;
+    --surface2: #1a1e28;
+    --border: #252a38;
+    --accent: #00e5a0;
+    --accent2: #5b8cff;
+    --accent3: #ff6b6b;
+    --accent4: #ffd166;
+    --accent5: #b388ff;
+    --text: #e8eaf0;
+    --text2: #8892a4;
+    --text3: #4a5568;
+    --card-glow: rgba(0,229,160,0.06);
+    --font-display: 'Syne', sans-serif;
+    --font-body: 'Instrument Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* UPLOAD SCREEN */
+  #upload-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,229,160,0.08) 0%, transparent 70%);
+  }
+
+  .upload-logo {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .upload-sub {
+    font-size: 0.85rem;
+    color: var(--text2);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 56px;
+    font-family: var(--font-mono);
+  }
+
+  .upload-zone {
+    width: 100%;
+    max-width: 540px;
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(0,229,160,0.04), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,229,160,0.04);
+  }
+
+  .upload-zone:hover::before, .upload-zone.drag-over::before { opacity: 1; }
+
+  .upload-icon {
+    width: 64px; height: 64px;
+    margin: 0 auto 20px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 16px;
+    background: rgba(0,229,160,0.1);
+    color: var(--accent);
+    font-size: 28px;
+  }
+
+  .upload-title {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .upload-hint {
+    font-size: 0.85rem;
+    color: var(--text2);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .upload-btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 12px 28px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+
+  .upload-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,229,160,0.3); }
+
+  #file-input { display: none; }
+
+  .file-formats {
+    margin-top: 20px;
+    font-size: 0.75rem;
+    color: var(--text3);
+    font-family: var(--font-mono);
+  }
+
+  .loading-bar {
+    width: 100%;
+    max-width: 540px;
+    margin-top: 20px;
+    display: none;
+  }
+
+  .loading-bar-inner {
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    animation: loading 1.5s infinite;
+  }
+
+  @keyframes loading {
+    0% { width: 0%; margin-left: 0; }
+    50% { width: 80%; margin-left: 10%; }
+    100% { width: 0%; margin-left: 100%; }
+  }
+
+  /* DASHBOARD */
+  #dashboard { display: none; flex-direction: column; min-height: 100vh; }
+
+  /* HEADER */
+  .dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,12,16,0.95);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .dash-logo {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+
+  .dash-logo span { color: var(--text); }
+
+  .dash-file-info {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .reload-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+
+  .reload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* SLICERS */
+  .slicers-bar {
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .slicer-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-right: 4px;
+  }
+
+  .slicer-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .slicer-select:focus { border-color: var(--accent); }
+
+  .slicer-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text3);
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: var(--font-body);
+    transition: all 0.2s;
+    margin-left: 8px;
+  }
+
+  .reset-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+
+  .records-badge {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text2);
+    background: var(--surface2);
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .records-badge span { color: var(--accent); font-weight: 500; }
+
+  /* MAIN */
+  .dash-main { padding: 28px 32px; flex: 1; }
+
+  /* SECTION TITLES */
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* KPI CARDS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .kpi-card:hover { transform: translateY(-2px); }
+  .kpi-card.green { border-color: rgba(0,229,160,0.3); }
+  .kpi-card.blue { border-color: rgba(91,140,255,0.3); }
+  .kpi-card.red { border-color: rgba(255,107,107,0.3); }
+  .kpi-card.yellow { border-color: rgba(255,209,102,0.3); }
+  .kpi-card.purple { border-color: rgba(179,136,255,0.3); }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .kpi-card.green::before { background: var(--accent); }
+  .kpi-card.blue::before { background: var(--accent2); }
+  .kpi-card.red::before { background: var(--accent3); }
+  .kpi-card.yellow::before { background: var(--accent4); }
+  .kpi-card.purple::before { background: var(--accent5); }
+
+  .kpi-icon {
+    font-size: 1.4rem;
+    margin-bottom: 10px;
+  }
+
+  .kpi-label {
+    font-size: 0.7rem;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+    font-family: var(--font-mono);
+  }
+
+  .kpi-value {
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+
+  .kpi-card.green .kpi-value { color: var(--accent); }
+  .kpi-card.blue .kpi-value { color: var(--accent2); }
+  .kpi-card.red .kpi-value { color: var(--accent3); }
+  .kpi-card.yellow .kpi-value { color: var(--accent4); }
+  .kpi-card.purple .kpi-value { color: var(--accent5); }
+
+  .kpi-sub {
+    font-size: 0.72rem;
+    color: var(--text3);
+    margin-top: 4px;
+    font-family: var(--font-mono);
+  }
+
+  /* CHART GRID */
+  .chart-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .chart-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .chart-grid-1 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 24px;
+    position: relative;
+  }
+
+  .chart-title {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+
+  .chart-desc {
+    font-size: 0.72rem;
+    color: var(--text3);
+    margin-bottom: 18px;
+    font-family: var(--font-mono);
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 250px;
+  }
+
+  .chart-wrap.tall { height: 320px; }
+  .chart-wrap.short { height: 200px; }
+
+  /* STAT PILLS */
+  .stat-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .stat-pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--text2);
+    display: flex;
+    gap: 6px;
+  }
+
+  .stat-pill strong { color: var(--text); }
+
+  /* TABLE */
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+
+  th {
+    background: var(--surface2);
+    padding: 12px 16px;
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(37,42,56,0.5);
+    color: var(--text);
+    font-family: var(--font-body);
+    white-space: nowrap;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    font-weight: 500;
+  }
+
+  .badge-green { background: rgba(0,229,160,0.15); color: var(--accent); }
+  .badge-red { background: rgba(255,107,107,0.15); color: var(--accent3); }
+  .badge-blue { background: rgba(91,140,255,0.15); color: var(--accent2); }
+  .badge-yellow { background: rgba(255,209,102,0.15); color: var(--accent4); }
+
+  /* FOOTER */
+  .dash-footer {
+    padding: 16px 32px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text3);
+  }
+
+  @media (max-width: 900px) {
+    .chart-grid-2, .chart-grid-3 { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .dash-main { padding: 20px 16px; }
+    .slicers-bar { padding: 12px 16px; }
+    .dash-header { padding: 14px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div class="upload-logo">Ride<span>IQ</span></div>
+  <div class="upload-sub">Booking Analytics Dashboard</div>
+
+  <div class="upload-zone" id="drop-zone">
+    <div class="upload-icon">📊</div>
+    <div class="upload-title">Drop your data file here</div>
+    <div class="upload-hint">Upload your ride booking CSV or Excel file.<br>All processing is done locally in your browser.</div>
+    <label class="upload-btn" for="file-input">Browse File</label>
+    <input type="file" id="file-input" accept=".csv,.xlsx,.xls">
+  </div>
+  <div class="loading-bar" id="loading-bar"><div class="loading-bar-inner"></div></div>
+  <div class="file-formats">Supported: .csv · .xlsx · .xls</div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <header class="dash-header">
+    <div class="dash-logo">Ride<span>IQ</span></div>
+    <div class="dash-file-info">
+      <div class="dot"></div>
+      <span id="file-name-display">—</span>
+    </div>
+    <button class="reload-btn" onclick="resetDashboard()">↩ Load New File</button>
+  </header>
+
+  <!-- SLICERS -->
+  <div class="slicers-bar">
+    <div class="slicer-group">
+      <span class="slicer-label">Vehicle</span>
+      <select class="slicer-select" id="sl-vehicle" onchange="applyFilters()">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="slicer-group">
+      <span class="slicer-label">Status</span>
+      <select class="slicer-select" id="sl-status" onchange="applyFilters()">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="slicer-group">
+      <span class="slicer-label">Payment</span>
+      <select class="slicer-select" id="sl-payment" onchange="applyFilters()">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="slicer-group">
+      <span class="slicer-label">Date</span>
+      <input type="date" class="slicer-select" id="sl-date-from" onchange="applyFilters()">
+      <span style="color:var(--text3); font-size:0.8rem;">to</span>
+      <input type="date" class="slicer-select" id="sl-date-to" onchange="applyFilters()">
+    </div>
+    <button class="reset-btn" onclick="resetFilters()">✕ Reset</button>
+    <div class="records-badge">Showing <span id="record-count">0</span> records</div>
+  </div>
+
+  <main class="dash-main">
+
+    <!-- KPIs -->
+    <div class="section-title">Key Performance Indicators</div>
+    <div class="kpi-grid">
+      <div class="kpi-card green">
+        <div class="kpi-icon">🚗</div>
+        <div class="kpi-label">Total Bookings</div>
+        <div class="kpi-value" id="kpi-total">—</div>
+        <div class="kpi-sub">All ride requests</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-icon">✅</div>
+        <div class="kpi-label">Completed Rides</div>
+        <div class="kpi-value" id="kpi-completed">—</div>
+        <div class="kpi-sub" id="kpi-completed-pct">—% completion rate</div>
+      </div>
+      <div class="kpi-card yellow">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-label">Total Revenue</div>
+        <div class="kpi-value" id="kpi-revenue">—</div>
+        <div class="kpi-sub" id="kpi-avg-value">Avg ₹— per ride</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-icon">❌</div>
+        <div class="kpi-label">Cancellations</div>
+        <div class="kpi-value" id="kpi-cancelled">—</div>
+        <div class="kpi-sub" id="kpi-cancel-pct">—% cancel rate</div>
+      </div>
+      <div class="kpi-card purple">
+        <div class="kpi-icon">⭐</div>
+        <div class="kpi-label">Avg Driver Rating</div>
+        <div class="kpi-value" id="kpi-driver-rating">—</div>
+        <div class="kpi-sub" id="kpi-customer-rating">Cust: —</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-icon">📍</div>
+        <div class="kpi-label">Avg Ride Distance</div>
+        <div class="kpi-value" id="kpi-distance">—</div>
+        <div class="kpi-sub">km per ride</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-icon">⏱️</div>
+        <div class="kpi-label">Avg VTAT</div>
+        <div class="kpi-value" id="kpi-vtat">—</div>
+        <div class="kpi-sub">Vehicle turnaround</div>
+      </div>
+      <div class="kpi-card yellow">
+        <div class="kpi-icon">🕐</div>
+        <div class="kpi-label">Avg CTAT</div>
+        <div class="kpi-value" id="kpi-ctat">—</div>
+        <div class="kpi-sub">Customer turnaround</div>
+      </div>
+    </div>
+
+    <!-- ROW 1: Booking Status + Vehicle Type -->
+    <div class="section-title">Booking Overview</div>
+    <div class="chart-grid-2">
+      <div class="chart-card">
+        <div class="chart-title">Booking Status Distribution</div>
+        <div class="chart-desc">Count & share of each booking outcome</div>
+        <div class="chart-wrap"><canvas id="chart-status"></canvas></div>
+        <div class="stat-pills" id="pills-status"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Vehicle Type Split</div>
+        <div class="chart-desc">Rides & revenue by vehicle category</div>
+        <div class="chart-wrap"><canvas id="chart-vehicle"></canvas></div>
+        <div class="stat-pills" id="pills-vehicle"></div>
+      </div>
+    </div>
+
+    <!-- ROW 2: Revenue + Distance -->
+    <div class="section-title">Revenue & Distance</div>
+    <div class="chart-grid-2">
+      <div class="chart-card">
+        <div class="chart-title">Revenue by Vehicle Type</div>
+        <div class="chart-desc">Total & average booking value per category</div>
+        <div class="chart-wrap"><canvas id="chart-revenue-vehicle"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Ride Distance Distribution</div>
+        <div class="chart-desc">Histogram of km per completed ride</div>
+        <div class="chart-wrap"><canvas id="chart-distance-hist"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ROW 3: Cancellations -->
+    <div class="section-title">Cancellation Analysis</div>
+    <div class="chart-grid-3">
+      <div class="chart-card">
+        <div class="chart-title">Customer Cancellation Reasons</div>
+        <div class="chart-desc">Top reasons customers cancelled</div>
+        <div class="chart-wrap"><canvas id="chart-cust-cancel"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Driver Cancellation Reasons</div>
+        <div class="chart-desc">Top reasons drivers cancelled</div>
+        <div class="chart-wrap"><canvas id="chart-driver-cancel"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Incomplete Ride Reasons</div>
+        <div class="chart-desc">Why rides did not complete</div>
+        <div class="chart-wrap"><canvas id="chart-incomplete"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ROW 4: Ratings -->
+    <div class="section-title">Ratings & Quality</div>
+    <div class="chart-grid-2">
+      <div class="chart-card">
+        <div class="chart-title">Driver Ratings Distribution</div>
+        <div class="chart-desc">Count of ratings per score (1–5)</div>
+        <div class="chart-wrap"><canvas id="chart-driver-ratings"></canvas></div>
+        <div class="stat-pills" id="pills-driver-rating"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Customer Ratings Distribution</div>
+        <div class="chart-desc">Count of ratings per score (1–5)</div>
+        <div class="chart-wrap"><canvas id="chart-cust-ratings"></canvas></div>
+        <div class="stat-pills" id="pills-cust-rating"></div>
+      </div>
+    </div>
+
+    <!-- ROW 5: Payment + Pickup Top -->
+    <div class="section-title">Payment & Locations</div>
+    <div class="chart-grid-2">
+      <div class="chart-card">
+        <div class="chart-title">Payment Method Breakdown</div>
+        <div class="chart-desc">Completed rides by payment mode</div>
+        <div class="chart-wrap short"><canvas id="chart-payment"></canvas></div>
+        <div class="stat-pills" id="pills-payment"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top 10 Pickup Locations</div>
+        <div class="chart-desc">Most frequent ride origins</div>
+        <div class="chart-wrap"><canvas id="chart-pickup"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ROW 6: Summary Table -->
+    <div class="section-title">Vehicle Type Summary Table</div>
+    <div class="chart-card" style="margin-bottom:18px;">
+      <div class="chart-title">Aggregated Metrics by Vehicle Type</div>
+      <div class="chart-desc">Count, revenue (sum/mean), distance (mean), ratings (mean), cancellation rate</div>
+      <div class="table-wrap" style="margin-top:16px;" id="summary-table-wrap"></div>
+    </div>
+
+    <!-- ROW 7: Status × Vehicle Heatmap -->
+    <div class="section-title">Cross-Analysis</div>
+    <div class="chart-grid-2">
+      <div class="chart-card">
+        <div class="chart-title">Booking Status by Vehicle Type</div>
+        <div class="chart-desc">Grouped bar — status counts per vehicle</div>
+        <div class="chart-wrap tall"><canvas id="chart-status-vehicle"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Avg Revenue by Vehicle & Status</div>
+        <div class="chart-desc">Mean booking value split</div>
+        <div class="chart-wrap tall"><canvas id="chart-revenue-status"></canvas></div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="dash-footer">RideIQ Dashboard · All data processed locally · No data is uploaded to any server</footer>
+</div>
+
+<script>
+// ───────── STATE ─────────
+let rawData = [];
+let filteredData = [];
+let charts = {};
+let fileName = '';
+
+// ───────── UPLOAD ─────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+window.addEventListener('load', () => {
+  fetch('ncr_ride_bookings.csv')
+    .then(response => response.text())
+    .then(csvText => {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: res => {
+          rawData = res.data;
+          fileName = 'ncr_ride_bookings.csv';
+          initDashboard();
+        }
+      });
+    })
+    .catch(error => {
+      console.error('Error loading CSV:', error);
+    });
+});
+
+function handleFile(file) {
+  fileName = file.name;
+  document.getElementById('loading-bar').style.display = 'block';
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: res => { rawData = res.data; initDashboard(); },
+      error: err => alert('CSV parse error: ' + err)
+    });
+  } else if (ext === 'xlsx' || ext === 'xls') {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      rawData = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      initDashboard();
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    alert('Please upload a .csv, .xlsx, or .xls file.');
+    document.getElementById('loading-bar').style.display = 'none';
+  }
+}
+
+// ───────── INIT ─────────
+function initDashboard() {
+  document.getElementById('loading-bar').style.display = 'none';
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'flex';
+  document.getElementById('file-name-display').textContent = fileName;
+
+  // Normalize column names
+  rawData = rawData.map(row => {
+    const norm = {};
+    Object.keys(row).forEach(k => { norm[k.trim()] = row[k]; });
+    return norm;
+  });
+
+  populateSlicers();
+  filteredData = [...rawData];
+  renderAll();
+}
+
+function populateSlicers() {
+  const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort();
+  const vehicleCol = findCol('Vehicle Type');
+  const statusCol = findCol('Booking Status');
+  const paymentCol = findCol('Payment Method');
+
+  fillSelect('sl-vehicle', uniq(rawData.map(r => r[vehicleCol])));
+  fillSelect('sl-status', uniq(rawData.map(r => r[statusCol])));
+  fillSelect('sl-payment', uniq(rawData.map(r => r[paymentCol])));
+
+  // Date range
+  const dateCol = findCol('Date');
+  const dates = rawData.map(r => r[dateCol]).filter(Boolean).sort();
+  if (dates.length) {
+    document.getElementById('sl-date-from').value = toInputDate(dates[0]);
+    document.getElementById('sl-date-to').value = toInputDate(dates[dates.length - 1]);
+  }
+}
+
+function toInputDate(str) {
+  if (!str) return '';
+  // Try to parse various date formats
+  const d = new Date(str);
+  if (!isNaN(d)) return d.toISOString().split('T')[0];
+  // dd-mm-yyyy
+  const m = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (m) return `${m[3].length===2?'20'+m[3]:m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return '';
+}
+
+function fillSelect(id, options) {
+  const sel = document.getElementById(id);
+  options.forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt; o.textContent = opt;
+    sel.appendChild(o);
+  });
+}
+
+function findCol(name) {
+  if (!rawData.length) return name;
+  const keys = Object.keys(rawData[0]);
+  const found = keys.find(k => k.trim().toLowerCase() === name.toLowerCase());
+  return found || name;
+}
+
+// ───────── FILTERS ─────────
+function applyFilters() {
+  const vehicle = document.getElementById('sl-vehicle').value;
+  const status = document.getElementById('sl-status').value;
+  const payment = document.getElementById('sl-payment').value;
+  const dateFrom = document.getElementById('sl-date-from').value;
+  const dateTo = document.getElementById('sl-date-to').value;
+
+  const vCol = findCol('Vehicle Type');
+  const sCol = findCol('Booking Status');
+  const pCol = findCol('Payment Method');
+  const dCol = findCol('Date');
+
+  filteredData = rawData.filter(r => {
+    if (vehicle && r[vCol] !== vehicle) return false;
+    if (status && r[sCol] !== status) return false;
+    if (payment && r[pCol] !== payment) return false;
+    if (dateFrom || dateTo) {
+      const rd = toInputDate(r[dCol]);
+      if (dateFrom && rd < dateFrom) return false;
+      if (dateTo && rd > dateTo) return false;
+    }
+    return true;
+  });
+
+  renderAll();
+}
+
+function resetFilters() {
+  document.getElementById('sl-vehicle').value = '';
+  document.getElementById('sl-status').value = '';
+  document.getElementById('sl-payment').value = '';
+  const dateCol = findCol('Date');
+  const dates = rawData.map(r => r[dateCol]).filter(Boolean).sort();
+  if (dates.length) {
+    document.getElementById('sl-date-from').value = toInputDate(dates[0]);
+    document.getElementById('sl-date-to').value = toInputDate(dates[dates.length - 1]);
+  }
+  filteredData = [...rawData];
+  renderAll();
+}
+
+function resetDashboard() {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('upload-screen').style.display = 'flex';
+  document.getElementById('file-input').value = '';
+  rawData = []; filteredData = [];
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+  document.querySelectorAll('.slicer-select').forEach(s => { while(s.options.length > 1) s.remove(1); s.value = ''; });
+}
+
+// ───────── HELPERS ─────────
+const fmtNum = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : Math.round(n).toLocaleString();
+const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+const sum = arr => arr.reduce((a,b)=>a+b,0);
+const safeNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+const pct = (a,b) => b ? ((a/b)*100).toFixed(1) : '0';
+
+const PALETTE = ['#00e5a0','#5b8cff','#ff6b6b','#ffd166','#b388ff','#00bcd4','#ff9a3c','#69d8a0','#f48fb1','#80cbc4'];
+
+function getCol(data, colName) {
+  const col = findCol(colName);
+  return data.map(r => safeNum(r[col])).filter(v => v !== null);
+}
+
+function countBy(data, colName) {
+  const col = findCol(colName);
+  const counts = {};
+  data.forEach(r => {
+    const v = r[col] || 'Unknown';
+    counts[v] = (counts[v] || 0) + 1;
+  });
+  return counts;
+}
+
+function groupBy(data, colName) {
+  const col = findCol(colName);
+  const groups = {};
+  data.forEach(r => {
+    const v = r[col] || 'Unknown';
+    if (!groups[v]) groups[v] = [];
+    groups[v].push(r);
+  });
+  return groups;
+}
+
+function makeChart(id, config) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  charts[id] = new Chart(ctx, config);
+}
+
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      labels: { color: '#8892a4', font: { family: 'DM Mono', size: 11 }, boxWidth: 12, padding: 16 }
+    },
+    tooltip: {
+      backgroundColor: '#1a1e28',
+      borderColor: '#252a38',
+      borderWidth: 1,
+      titleColor: '#e8eaf0',
+      bodyColor: '#8892a4',
+      titleFont: { family: 'Syne', weight: '700' },
+      bodyFont: { family: 'DM Mono', size: 11 },
+      padding: 12,
+      callbacks: {}
+    }
+  },
+  scales: {
+    x: {
+      ticks: { color: '#4a5568', font: { family: 'DM Mono', size: 10 } },
+      grid: { color: 'rgba(37,42,56,0.5)' }
+    },
+    y: {
+      ticks: { color: '#4a5568', font: { family: 'DM Mono', size: 10 } },
+      grid: { color: 'rgba(37,42,56,0.5)' }
+    }
+  }
+};
+
+// ───────── RENDER ALL ─────────
+function renderAll() {
+  const data = filteredData;
+  document.getElementById('record-count').textContent = data.length.toLocaleString();
+
+  renderKPIs(data);
+  renderStatusChart(data);
+  renderVehicleChart(data);
+  renderRevenueByVehicle(data);
+  renderDistanceHist(data);
+  renderCancelReasons(data);
+  renderRatings(data);
+  renderPayment(data);
+  renderTopPickups(data);
+  renderSummaryTable(data);
+  renderStatusVehicle(data);
+  renderRevenueStatus(data);
+}
+
+// ───────── KPIs ─────────
+function renderKPIs(data) {
+  const statusCol = findCol('Booking Status');
+  const completed = data.filter(r => (r[statusCol]||'').toLowerCase().includes('success') || (r[statusCol]||'').toLowerCase().includes('complete'));
+  const cancelled = data.filter(r => (r[statusCol]||'').toLowerCase().includes('cancel'));
+  const revenues = getCol(data, 'Booking Value');
+  const distances = getCol(data, 'Ride Distance');
+  const driverR = getCol(data, 'Driver Ratings');
+  const custR = getCol(data, 'Customer Rating');
+  const vtat = getCol(data, 'Avg VTAT');
+  const ctat = getCol(data, 'Avg CTAT');
+  const totalRev = sum(revenues);
+  const avgVal = revenues.length ? avg(revenues) : 0;
+
+  document.getElementById('kpi-total').textContent = fmtNum(data.length);
+  document.getElementById('kpi-completed').textContent = fmtNum(completed.length);
+  document.getElementById('kpi-completed-pct').textContent = pct(completed.length, data.length) + '% completion rate';
+  document.getElementById('kpi-revenue').textContent = '₹' + fmtNum(totalRev);
+  document.getElementById('kpi-avg-value').textContent = 'Avg ₹' + avgVal.toFixed(0) + ' per ride';
+  document.getElementById('kpi-cancelled').textContent = fmtNum(cancelled.length);
+  document.getElementById('kpi-cancel-pct').textContent = pct(cancelled.length, data.length) + '% cancel rate';
+  document.getElementById('kpi-driver-rating').textContent = driverR.length ? avg(driverR).toFixed(2) : '—';
+  document.getElementById('kpi-customer-rating').textContent = 'Cust: ' + (custR.length ? avg(custR).toFixed(2) : '—');
+  document.getElementById('kpi-distance').textContent = distances.length ? avg(distances).toFixed(1) : '—';
+  document.getElementById('kpi-vtat').textContent = vtat.length ? avg(vtat).toFixed(1) : '—';
+  document.getElementById('kpi-ctat').textContent = ctat.length ? avg(ctat).toFixed(1) : '—';
+}
+
+// ───────── STATUS CHART ─────────
+function renderStatusChart(data) {
+  const counts = countBy(data, 'Booking Status');
+  const labels = Object.keys(counts);
+  const values = Object.values(counts);
+  const colors = labels.map((l,i) => {
+    const ll = l.toLowerCase();
+    if (ll.includes('success') || ll.includes('complete')) return '#00e5a0';
+    if (ll.includes('cancel')) return '#ff6b6b';
+    if (ll.includes('incomplete') || ll.includes('driver')) return '#ffd166';
+    return PALETTE[i % PALETTE.length];
+  });
+
+  makeChart('chart-status', {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#12151c', borderWidth: 3 }] },
+    options: {
+      ...chartDefaults,
+      cutout: '62%',
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: { ...chartDefaults.plugins.legend, position: 'bottom' }
+      }
+    }
+  });
+
+  const pills = document.getElementById('pills-status');
+  pills.innerHTML = labels.map((l,i) =>
+    `<div class="stat-pill"><strong>${values[i].toLocaleString()}</strong> ${l} <span style="color:${colors[i]}">(${pct(values[i],data.length)}%)</span></div>`
+  ).join('');
+}
+
+// ───────── VEHICLE CHART ─────────
+function renderVehicleChart(data) {
+  const counts = countBy(data, 'Vehicle Type');
+  const labels = Object.keys(counts);
+  const values = Object.values(counts);
+
+  makeChart('chart-vehicle', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Rides',
+        data: values,
+        backgroundColor: PALETTE.slice(0, labels.length),
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      scales: {
+        x: { ...chartDefaults.scales.x, ticks: { color: '#4a5568', font: { family: 'DM Mono', size: 10 }, maxRotation: 30 } },
+        y: { ...chartDefaults.scales.y }
+      }
+    }
+  });
+
+  const pills = document.getElementById('pills-vehicle');
+  const total = data.length;
+  pills.innerHTML = labels.map((l,i) =>
+    `<div class="stat-pill"><strong>${values[i].toLocaleString()}</strong> ${l} <span style="color:${PALETTE[i%PALETTE.length]}">(${pct(values[i],total)}%)</span></div>`
+  ).join('');
+}
+
+// ───────── REVENUE BY VEHICLE ─────────
+function renderRevenueByVehicle(data) {
+  const groups = groupBy(data, 'Vehicle Type');
+  const labels = Object.keys(groups);
+  const bvCol = findCol('Booking Value');
+  const totals = labels.map(l => sum(groups[l].map(r => safeNum(r[bvCol])).filter(v => v !== null)));
+  const means = labels.map(l => {
+    const vals = groups[l].map(r => safeNum(r[bvCol])).filter(v => v !== null);
+    return vals.length ? avg(vals) : 0;
+  });
+
+  makeChart('chart-revenue-vehicle', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Total Revenue', data: totals, backgroundColor: 'rgba(91,140,255,0.8)', borderRadius: 4, yAxisID: 'y' },
+        { label: 'Avg Value', data: means, type: 'line', borderColor: '#ffd166', backgroundColor: 'transparent', pointBackgroundColor: '#ffd166', tension: 0.4, yAxisID: 'y1' }
+      ]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { ...chartDefaults.plugins.legend, position: 'top' } },
+      scales: {
+        x: chartDefaults.scales.x,
+        y: { ...chartDefaults.scales.y, title: { display: true, text: 'Total ₹', color: '#4a5568', font: { size: 10 } } },
+        y1: { type: 'linear', position: 'right', ticks: { color: '#4a5568', font: { family: 'DM Mono', size: 10 } }, grid: { display: false }, title: { display: true, text: 'Avg ₹', color: '#4a5568', font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+// ───────── DISTANCE HISTOGRAM ─────────
+function renderDistanceHist(data) {
+  const distances = getCol(data, 'Ride Distance');
+  if (!distances.length) { return; }
+  const min = Math.min(...distances), max = Math.max(...distances);
+  const bins = 12;
+  const step = (max - min) / bins;
+  const buckets = Array(bins).fill(0);
+  const labels = [];
+  for (let i = 0; i < bins; i++) labels.push(`${(min + i*step).toFixed(0)}–${(min + (i+1)*step).toFixed(0)}`);
+  distances.forEach(d => {
+    let idx = Math.floor((d - min) / step);
+    if (idx >= bins) idx = bins - 1;
+    buckets[idx]++;
+  });
+
+  makeChart('chart-distance-hist', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Rides', data: buckets, backgroundColor: 'rgba(0,229,160,0.7)', borderRadius: 3 }]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      scales: {
+        x: { ...chartDefaults.scales.x, ticks: { ...chartDefaults.scales.x.ticks, maxRotation: 45 } },
+        y: chartDefaults.scales.y
+      }
+    }
+  });
+}
+
+// ───────── CANCEL REASONS ─────────
+function renderCancelReasons(data) {
+  const custCancelCol = findCol('Customer Cancellation reason');
+  const driverCancelCol = findCol('Driver Cancellation Reason');
+  const incompleteCol = findCol('Incomplete Rides Reason');
+
+  renderHorizBar('chart-cust-cancel', countBy(data.filter(r => r[custCancelCol]), 'Customer Cancellation reason'), '#ff6b6b');
+  renderHorizBar('chart-driver-cancel', countBy(data.filter(r => r[driverCancelCol]), 'Driver Cancellation Reason'), '#ffd166');
+  renderHorizBar('chart-incomplete', countBy(data.filter(r => r[incompleteCol]), 'Incomplete Rides Reason'), '#b388ff');
+}
+
+function renderHorizBar(id, counts, color) {
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if (!entries.length) return;
+  const labels = entries.map(e => e[0].length > 22 ? e[0].slice(0,20)+'…' : e[0]);
+  const values = entries.map(e => e[1]);
+
+  makeChart(id, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Count', data: values, backgroundColor: color + 'bb', borderRadius: 4 }]
+    },
+    options: {
+      ...chartDefaults,
+      indexAxis: 'y',
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      scales: {
+        x: chartDefaults.scales.x,
+        y: { ...chartDefaults.scales.y, ticks: { color: '#8892a4', font: { family: 'DM Mono', size: 9 } } }
+      }
+    }
+  });
+}
+
+// ───────── RATINGS ─────────
+function renderRatings(data) {
+  renderRatingChart('chart-driver-ratings', getCol(data, 'Driver Ratings'), '#00e5a0', 'pills-driver-rating');
+  renderRatingChart('chart-cust-ratings', getCol(data, 'Customer Rating'), '#5b8cff', 'pills-cust-rating');
+}
+
+function renderRatingChart(id, vals, color, pillsId) {
+  if (!vals.length) return;
+  const bins = { '1':0,'2':0,'3':0,'4':0,'5':0 };
+  vals.forEach(v => {
+    const k = Math.round(v).toString();
+    if (bins[k] !== undefined) bins[k]++;
+  });
+  const labels = Object.keys(bins);
+  const values = Object.values(bins);
+
+  makeChart(id, {
+    type: 'bar',
+    data: {
+      labels: labels.map(l => '⭐'.repeat(+l) + ' (' + l + ')'),
+      datasets: [{ label: 'Count', data: values, backgroundColor: color + '99', borderRadius: 4 }]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      scales: { x: chartDefaults.scales.x, y: chartDefaults.scales.y }
+    }
+  });
+
+  const mean = avg(vals).toFixed(2);
+  const med = [...vals].sort((a,b)=>a-b)[Math.floor(vals.length/2)];
+  const pills = document.getElementById(pillsId);
+  pills.innerHTML = `
+    <div class="stat-pill"><strong>Mean:</strong> ${mean}</div>
+    <div class="stat-pill"><strong>Median:</strong> ${med?.toFixed(1)}</div>
+    <div class="stat-pill"><strong>Count:</strong> ${vals.length.toLocaleString()}</div>
+  `;
+}
+
+// ───────── PAYMENT ─────────
+function renderPayment(data) {
+  const payCol = findCol('Payment Method');
+  const completed = data.filter(r => r[payCol]);
+  const counts = countBy(completed, 'Payment Method');
+  const labels = Object.keys(counts);
+  const values = Object.values(counts);
+  const colors = labels.map((_,i) => PALETTE[i % PALETTE.length]);
+
+  makeChart('chart-payment', {
+    type: 'pie',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#12151c', borderWidth: 3 }] },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { ...chartDefaults.plugins.legend, position: 'right' } }
+    }
+  });
+
+  const pills = document.getElementById('pills-payment');
+  const total = sum(values);
+  pills.innerHTML = labels.map((l,i) =>
+    `<div class="stat-pill" style="border-color:${colors[i]}44;"><strong>${values[i].toLocaleString()}</strong> ${l} <span style="color:${colors[i]}">${pct(values[i],total)}%</span></div>`
+  ).join('');
+}
+
+// ───────── TOP PICKUPS ─────────
+function renderTopPickups(data) {
+  const counts = countBy(data, 'Pickup Location');
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const labels = entries.map(e => e[0]);
+  const values = entries.map(e => e[1]);
+
+  makeChart('chart-pickup', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Rides', data: values, backgroundColor: PALETTE, borderRadius: 4 }]
+    },
+    options: {
+      ...chartDefaults,
+      indexAxis: 'y',
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      scales: {
+        x: chartDefaults.scales.x,
+        y: { ...chartDefaults.scales.y, ticks: { color: '#8892a4', font: { family: 'DM Mono', size: 10 } } }
+      }
+    }
+  });
+}
+
+// ───────── SUMMARY TABLE ─────────
+function renderSummaryTable(data) {
+  const groups = groupBy(data, 'Vehicle Type');
+  const statusCol = findCol('Booking Status');
+  const bvCol = findCol('Booking Value');
+  const rdCol = findCol('Ride Distance');
+  const drCol = findCol('Driver Ratings');
+  const crCol = findCol('Customer Rating');
+
+  const rows = Object.entries(groups).map(([vehicle, rows]) => {
+    const bv = rows.map(r => safeNum(r[bvCol])).filter(v => v !== null);
+    const rd = rows.map(r => safeNum(r[rdCol])).filter(v => v !== null);
+    const dr = rows.map(r => safeNum(r[drCol])).filter(v => v !== null);
+    const cr = rows.map(r => safeNum(r[crCol])).filter(v => v !== null);
+    const cancelled = rows.filter(r => (r[statusCol]||'').toLowerCase().includes('cancel')).length;
+    const completed = rows.filter(r => (r[statusCol]||'').toLowerCase().includes('success') || (r[statusCol]||'').toLowerCase().includes('complete')).length;
+
+    return {
+      vehicle,
+      count: rows.length,
+      completed,
+      completionRate: pct(completed, rows.length),
+      cancelRate: pct(cancelled, rows.length),
+      totalRev: sum(bv),
+      avgRev: bv.length ? avg(bv) : 0,
+      avgDist: rd.length ? avg(rd) : 0,
+      avgDriverR: dr.length ? avg(dr) : 0,
+      avgCustR: cr.length ? avg(cr) : 0,
+    };
+  });
+
+  rows.sort((a,b) => b.count - a.count);
+
+  const statusBadge = (val, thresh1, thresh2) => {
+    const n = parseFloat(val);
+    if (n >= thresh1) return `<span class="badge badge-green">${val}%</span>`;
+    if (n >= thresh2) return `<span class="badge badge-yellow">${val}%</span>`;
+    return `<span class="badge badge-red">${val}%</span>`;
+  };
+
+  const html = `<table>
+    <thead>
+      <tr>
+        <th>Vehicle Type</th>
+        <th>Total Rides</th>
+        <th>Completed</th>
+        <th>Completion %</th>
+        <th>Cancel %</th>
+        <th>Total Revenue (₹)</th>
+        <th>Avg Revenue (₹)</th>
+        <th>Avg Distance (km)</th>
+        <th>Avg Driver ⭐</th>
+        <th>Avg Cust ⭐</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map(r => `<tr>
+        <td><strong>${r.vehicle}</strong></td>
+        <td>${r.count.toLocaleString()}</td>
+        <td>${r.completed.toLocaleString()}</td>
+        <td>${statusBadge(r.completionRate, 70, 50)}</td>
+        <td>${statusBadge(r.cancelRate, 20, 10) /* inverted — high cancel = bad */
+          .replace('badge-green','badge-x').replace('badge-red','badge-green').replace('badge-x','badge-red')}</td>
+        <td>₹${fmtNum(r.totalRev)}</td>
+        <td>₹${r.avgRev.toFixed(0)}</td>
+        <td>${r.avgDist.toFixed(1)}</td>
+        <td>${r.avgDriverR ? r.avgDriverR.toFixed(2) : '—'}</td>
+        <td>${r.avgCustR ? r.avgCustR.toFixed(2) : '—'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  document.getElementById('summary-table-wrap').innerHTML = html;
+}
+
+// ───────── STATUS × VEHICLE ─────────
+function renderStatusVehicle(data) {
+  const statusCol = findCol('Booking Status');
+  const vehicleCol = findCol('Vehicle Type');
+  const statuses = [...new Set(data.map(r => r[statusCol]).filter(Boolean))];
+  const vehicles = [...new Set(data.map(r => r[vehicleCol]).filter(Boolean))];
+
+  const datasets = statuses.map((s,i) => {
+    const ll = s.toLowerCase();
+    let color;
+    if (ll.includes('success') || ll.includes('complete')) color = '#00e5a0';
+    else if (ll.includes('cancel')) color = '#ff6b6b';
+    else color = PALETTE[(i+2) % PALETTE.length];
+    return {
+      label: s,
+      data: vehicles.map(v => data.filter(r => r[statusCol] === s && r[vehicleCol] === v).length),
+      backgroundColor: color + 'cc',
+      borderRadius: 4
+    };
+  });
+
+  makeChart('chart-status-vehicle', {
+    type: 'bar',
+    data: { labels: vehicles, datasets },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { ...chartDefaults.plugins.legend, position: 'bottom' } },
+      scales: { x: chartDefaults.scales.x, y: chartDefaults.scales.y }
+    }
+  });
+}
+
+// ───────── REVENUE × STATUS ─────────
+function renderRevenueStatus(data) {
+  const statusCol = findCol('Booking Status');
+  const vehicleCol = findCol('Vehicle Type');
+  const bvCol = findCol('Booking Value');
+  const vehicles = [...new Set(data.map(r => r[vehicleCol]).filter(Boolean))];
+  const statuses = [...new Set(data.map(r => r[statusCol]).filter(Boolean))];
+
+  const datasets = statuses.map((s,i) => {
+    const ll = s.toLowerCase();
+    let color;
+    if (ll.includes('success') || ll.includes('complete')) color = '#00e5a0';
+    else if (ll.includes('cancel')) color = '#ff6b6b';
+    else color = PALETTE[(i+2) % PALETTE.length];
+    return {
+      label: s,
+      data: vehicles.map(v => {
+        const vals = data.filter(r => r[statusCol] === s && r[vehicleCol] === v).map(r => safeNum(r[bvCol])).filter(v => v !== null);
+        return vals.length ? avg(vals).toFixed(0) : 0;
+      }),
+      backgroundColor: color + 'bb',
+      borderRadius: 4
+    };
+  });
+
+  makeChart('chart-revenue-status', {
+    type: 'bar',
+    data: { labels: vehicles, datasets },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { ...chartDefaults.plugins.legend, position: 'bottom' } },
+      scales: { x: chartDefaults.scales.x, y: { ...chartDefaults.scales.y, title: { display: true, text: 'Avg ₹', color: '#4a5568', font: { size: 10 } } } }
+    }
+  });
+}
+</script>
+</body>
+</html>
